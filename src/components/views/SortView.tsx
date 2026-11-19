@@ -12,8 +12,10 @@ export function SortView({ s }: { s: SortState }) {
       <div className="bars" style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}>
         {s.arr.map((v, i) => {
           const mark = s.marks[i];
-          const out = s.range && (i < s.range[0] || i > s.range[1]);
-          const cls = ['bar', mark ? `m-${mark}` : sorted.has(i) ? 'm-sorted' : '', out ? 'dim' : ''].join(' ');
+          const inside = !!s.range && i >= s.range[0] && i <= s.range[1];
+          const out = !!s.range && !inside && s.rangeMode !== 'window';
+          const win = inside && s.rangeMode === 'window';
+          const cls = ['bar', mark ? `m-${mark}` : sorted.has(i) ? 'm-sorted' : win ? 'm-window' : '', out ? 'dim' : ''].join(' ');
           return (
             <div key={i} className="bar-col" title={`a[${i}] = ${v}`}>
               {showVals && <span className="bar-val">{v}</span>}

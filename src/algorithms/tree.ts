@@ -1,4 +1,4 @@
-import { parseCpp, Recorder } from '../core/cpp';
+import { CallTracker, parseCpp, Recorder } from '../core/cpp';
 import type { Algo, TNode, TreeState, Vars } from '../core/types';
 import insertSrc from '../cpp/bst_insert.cpp?raw';
 import inSrc from '../cpp/bst_inorder.cpp?raw';
@@ -84,9 +84,11 @@ function traversal(order: Order, src: string) {
     const r = new Recorder<TreeState>(p.labels);
     const { nodes, root } = buildTree(values);
     const s: TreeState = { nodes, root, current: null, path: [], output: [], fresh: null, vars: {} };
+    const ct = new CallTracker();
+    const fn = order === 'in' ? 'inorder' : order === 'pre' ? 'preorder' : 'postorder';
     const snap = (label: string, msg: string) => {
       s.vars = { out: `[${s.output.join(', ')}]` };
-      r.add(label, msg, s);
+      r.add(label, msg, { ...s, ...ct.snapshot() });
     };
     const visit = (id: number) => {
       s.current = id;
@@ -96,6 +98,7 @@ function traversal(order: Order, src: string) {
     const walk = (id: number | null) => {
       if (id === null) return;
       const n = nodes[id];
+      ct.enter(`${fn}(${n.val})`);
       s.path.push(id);
       s.current = id;
       if (order === 'pre') visit(id);
@@ -110,6 +113,7 @@ function traversal(order: Order, src: string) {
       s.current = id;
       if (order === 'post') visit(id);
       s.path.pop();
+      ct.exit();
     };
     walk(root);
     s.current = null;
@@ -120,7 +124,7 @@ function traversal(order: Order, src: string) {
 
 export const treeAlgos: Algo[] = [
   { kind: 'tree', id: 'bst-insert', name: 'BST insert', code: parseCpp(insertSrc).code, time: 'O(h) per insert', space: 'O(h) recursion', note: 'h = height: log n if balanced, n if you insert sorted data.', run: insertFrames },
-  { kind: 'tree', id: 'inorder', name: 'Inorder traversal', code: parseCpp(inSrc).code, time: 'O(n)', space: 'O(h)', note: 'Left, node, right. On a BST this prints values in sorted order.', run: traversal('in', inSrc) },
-  { kind: 'tree', id: 'preorder', name: 'Preorder traversal', code: parseCpp(preSrc).code, time: 'O(n)', space: 'O(h)', note: 'Node, left, right. Used to copy/serialize a tree.', run: traversal('pre', preSrc) },
-  { kind: 'tree', id: 'postorder', name: 'Postorder traversal', code: parseCpp(postSrc).code, time: 'O(n)', space: 'O(h)', note: 'Left, right, node. Used to delete/free a tree.', run: traversal('post', postSrc) },
+  { kind: 'tree', recursive: true, id: 'inorder', name: 'Inorder traversal', code: parseCpp(inSrc).code, time: 'O(n)', space: 'O(h)', note: 'Left, node, right. On a BST this prints values in sorted order.', run: traversal('in', inSrc) },
+  { kind: 'tree', recursive: true, id: 'preorder', name: 'Preorder traversal', code: parseCpp(preSrc).code, time: 'O(n)', space: 'O(h)', note: 'Node, left, right. Used to copy/serialize a tree.', run: traversal('pre', preSrc) },
+  { kind: 'tree', recursive: true, id: 'postorder', name: 'Postorder traversal', code: parseCpp(postSrc).code, time: 'O(n)', space: 'O(h)', note: 'Left, right, node. Used to delete/free a tree.', run: traversal('post', postSrc) },
 ];

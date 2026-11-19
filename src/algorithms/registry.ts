@@ -3,9 +3,11 @@ import { sortingAlgos } from './sorting';
 import { graphAlgos } from './graph';
 import { dpAlgos } from './dp';
 import { treeAlgos } from './tree';
+import { searchAlgos } from './search';
 
 export const GROUPS: { title: string; algos: Algo[] }[] = [
   { title: 'Sorting', algos: sortingAlgos },
+  { title: 'Searching', algos: searchAlgos },
   { title: 'Graphs', algos: graphAlgos },
   { title: 'Dynamic programming', algos: dpAlgos },
   { title: 'Trees', algos: treeAlgos },

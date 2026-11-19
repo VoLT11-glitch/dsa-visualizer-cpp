@@ -1,4 +1,4 @@
-import { parseCpp, Recorder } from '../core/cpp';
+import { CallTracker, parseCpp, Recorder } from '../core/cpp';
 import type { Algo, Mark, SortState, Vars } from '../core/types';
 import bubbleSrc from '../cpp/bubble.cpp?raw';
 import insertionSrc from '../cpp/insertion.cpp?raw';
@@ -15,9 +15,10 @@ function session(src: string, input: number[]) {
   const r = new Recorder<SortState>(p.labels);
   const a = [...input];
   const sorted = new Set<number>();
+  const ct = new CallTracker();
   const snap = (label: string, msg: string, marks: Record<number, Mark> = {}, vars: Vars = {}, extra: Partial<SortState> = {}) =>
-    r.add(label, msg, { arr: a, marks, sorted: [...sorted], vars, ...extra });
-  return { code: p.code, r, a, sorted, snap };
+    r.add(label, msg, { arr: a, marks, sorted: [...sorted], vars, ...(ct.nodes.length ? ct.snapshot() : {}), ...extra });
+  return { code: p.code, r, a, sorted, snap, ct };
 }
 
 function bubble(input: number[]) {
@@ -98,7 +99,7 @@ function selection(input: number[]) {
 }
 
 function mergeSortFrames(input: number[]) {
-  const { r, a, sorted, snap } = session(mergeSrc, input);
+  const { r, a, sorted, snap, ct } = session(mergeSrc, input);
   const n = a.length;
   const merge = (lo: number, mid: number, hi: number) => {
     const tmp: number[] = [];
@@ -130,8 +131,10 @@ function mergeSortFrames(input: number[]) {
     }
   };
   const ms = (lo: number, hi: number) => {
+    ct.enter(`ms(${lo},${hi})`);
     if (lo >= hi) {
       snap('base', `Range [${lo}..${hi}] has ≤ 1 element → already sorted`, {}, { lo, hi }, { range: [lo, Math.max(lo, hi)] });
+      ct.exit();
       return;
     }
     const mid = lo + Math.floor((hi - lo) / 2);
@@ -140,6 +143,7 @@ function mergeSortFrames(input: number[]) {
     ms(mid + 1, hi);
     snap('merge', `Merge sorted halves [${lo}..${mid}] and [${mid + 1}..${hi}]`, {}, { lo, mid, hi }, { range: [lo, hi] });
     merge(lo, mid, hi);
+    ct.exit();
   };
   ms(0, n - 1);
   range(n).forEach((k) => sorted.add(k));
@@ -148,7 +152,7 @@ function mergeSortFrames(input: number[]) {
 }
 
 function quick(input: number[]) {
-  const { r, a, sorted, snap } = session(quickSrc, input);
+  const { r, a, sorted, snap, ct } = session(quickSrc, input);
   const n = a.length;
   const partition = (lo: number, hi: number) => {
     const pivot = a[hi];
@@ -169,15 +173,18 @@ function quick(input: number[]) {
     return i + 1;
   };
   const qs = (lo: number, hi: number) => {
+    ct.enter(`qs(${lo},${hi})`);
     if (lo >= hi) {
       if (lo === hi) sorted.add(lo);
       snap('base', `Range [${lo}..${hi}] has ≤ 1 element → done`, {}, { lo, hi });
+      ct.exit();
       return;
     }
     snap('part', `Partition a[${lo}..${hi}]`, {}, { lo, hi }, { range: [lo, hi] });
     const p = partition(lo, hi);
     qs(lo, p - 1);
     qs(p + 1, hi);
+    ct.exit();
   };
   qs(0, n - 1);
   range(n).forEach((k) => sorted.add(k));
@@ -229,7 +236,7 @@ export const sortingAlgos: Algo[] = [
   { kind: 'sort', id: 'bubble', name: 'Bubble sort', code: meta(bubbleSrc), time: 'O(n²) · best O(n)', space: 'O(1)', note: 'Stable. Early exit makes already-sorted input linear.', run: bubble },
   { kind: 'sort', id: 'insertion', name: 'Insertion sort', code: meta(insertionSrc), time: 'O(n²) · best O(n)', space: 'O(1)', note: 'Stable. Great on small or nearly-sorted arrays.', run: insertion },
   { kind: 'sort', id: 'selection', name: 'Selection sort', code: meta(selectionSrc), time: 'O(n²) always', space: 'O(1)', note: 'Not stable. At most n−1 swaps.', run: selection },
-  { kind: 'sort', id: 'merge', name: 'Merge sort', code: meta(mergeSrc), time: 'O(n log n)', space: 'O(n)', note: 'Stable. Call as mergeSort(a, 0, n - 1).', run: mergeSortFrames },
-  { kind: 'sort', id: 'quick', name: 'Quick sort', code: meta(quickSrc), time: 'O(n log n) avg · O(n²) worst', space: 'O(log n) stack', note: 'Lomuto partition, last element as pivot. Sorted input is the worst case.', run: quick },
+  { kind: 'sort', recursive: true, id: 'merge', name: 'Merge sort', code: meta(mergeSrc), time: 'O(n log n)', space: 'O(n)', note: 'Stable. Call as mergeSort(a, 0, n - 1).', run: mergeSortFrames },
+  { kind: 'sort', recursive: true, id: 'quick', name: 'Quick sort', code: meta(quickSrc), time: 'O(n log n) avg · O(n²) worst', space: 'O(log n) stack', note: 'Lomuto partition, last element as pivot. Sorted input is the worst case.', run: quick },
   { kind: 'sort', id: 'heap', name: 'Heap sort', code: meta(heapSrc), time: 'O(n log n)', space: 'O(1)', note: 'Not stable. Builds a max-heap, then extracts the max n−1 times.', run: heap },
 ];

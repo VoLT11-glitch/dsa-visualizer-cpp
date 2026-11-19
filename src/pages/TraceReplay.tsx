@@ -9,6 +9,8 @@ import { parseTrace, Replay, type Trace } from '../replay/trace';
 import exampleTrace from '../../cpp/examples/trace.json?raw';
 import exampleSrc from '../../cpp/examples/insertion_trace.cpp?raw';
 import headerSrc from '../../cpp/tracked_vector.hpp?raw';
+import { runCpp } from '../lib/judge0';
+import { buildTraceProgram } from '../replay/program';
 
 const toLines = (s: string) => s.replace(/\r/g, '').trimEnd().split('\n');
 
@@ -19,6 +21,8 @@ export function TraceReplay() {
   const [err, setErr] = useState('');
   const [paste, setPaste] = useState('');
   const [editSrc, setEditSrc] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [runOut, setRunOut] = useState<{ stdout: string; note: string } | null>(null);
 
   const replay = useMemo(() => new Replay(trace, vec), [trace, vec]);
   const p = usePlayer(replay.count, replay);
@@ -45,6 +49,26 @@ export function TraceReplay() {
     if (file.name.endsWith('.json')) load(text);
     else setSrc(text);
   };
+  const runOnline = async () => {
+    setRunning(true);
+    setErr('');
+    setRunOut(null);
+    try {
+      const res = await runCpp(buildTraceProgram(src), { flags: '-O0 -std=c++20', cpuLimit: 5 });
+      if (res.compileError) throw new Error(`Compile error:
+${res.compileOutput}`);
+      const start = res.stderr.indexOf('{"version"');
+      if (start < 0) throw new Error(`${res.status}: no trace came back.${res.stderr ? ' stderr: ' + res.stderr.slice(0, 300) : ''} Did you use TrackedVector?`);
+      const t = parseTrace(res.stderr.slice(start));
+      setTrace(t);
+      setVec(t.vectors[0]?.id ?? 0);
+      setEditSrc(false);
+      setRunOut({ stdout: res.stdout, note: `${res.status} · ${t.ops.length} ops traced${res.time !== null ? ` · ${res.time}s` : ''}` });
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+    setRunning(false);
+  };
   const downloadHeader = () => {
     const url = URL.createObjectURL(new Blob([headerSrc], { type: 'text/plain' }));
     const a = document.createElement('a');
@@ -57,7 +81,16 @@ export function TraceReplay() {
   return (
     <div className="viz-layout replay">
       <aside className="algo-nav replay-side">
-        <div className="group-title">How it works</div>
+        <div className="group-title">Run in the browser</div>
+        <p className="side-note">Edit the C++ on the right (keep using <code>TrackedVector</code>), then:</p>
+        <button className="primary" onClick={runOnline} disabled={running}>{running ? 'Compiling & running…' : '▶ Run on Judge0'}</button>
+        {runOut && (
+          <div className="run-out">
+            <div className="muted">{runOut.note}</div>
+            {runOut.stdout && <pre>{runOut.stdout.slice(0, 600)}</pre>}
+          </div>
+        )}
+        <div className="group-title">Or run it locally</div>
         <ol className="steps">
           <li><button className="linklike" onClick={downloadHeader}>Download tracked_vector.hpp</button></li>
           <li>Swap <code>vector&lt;int&gt;</code> for <code>TrackedVector&lt;int&gt;</code> in your solution.</li>
@@ -74,7 +107,7 @@ export function TraceReplay() {
           <button onClick={() => load(paste)} disabled={!paste.trim()}>Load pasted</button>
           <button onClick={() => { load(exampleTrace, exampleSrc); setPaste(''); }}>Example</button>
         </div>
-        {err && <div className="error">{err}</div>}
+        {err && <div className="error pre">{err}</div>}
         {trace.truncated && <div className="error">Trace hit TV_MAX_OPS and was cut short.</div>}
       </aside>
 

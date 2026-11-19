@@ -7,7 +7,8 @@
 //
 // Compile with C++20:  g++ -std=c++20 -O0 your.cpp -o your
 // On exit it writes trace.json (or the path in env var TV_TRACE). Load that file
-// on the "Trace replay" page.
+// on the "Trace replay" page. Define TV_STDERR before including to print the
+// trace to stderr instead (the site's "Run online" button does this).
 //
 // Limits (on purpose, MVP): arithmetic element types only; indexing via operator[]
 // only (no iterators, no std::sort on it); `auto x = a[i]` gives a proxy — write
@@ -55,9 +56,13 @@ public:
     void dump() {
         if (dumped_) return;
         dumped_ = true;
+#ifdef TV_STDERR
+        FILE* f = stderr;
+#else
         const char* path = std::getenv("TV_TRACE");
         FILE* f = std::fopen(path ? path : "trace.json", "w");
         if (!f) return;
+#endif
         std::fprintf(f, "{\"version\":1,\"truncated\":%s,\"vectors\":[", truncated_ ? "true" : "false");
         for (size_t v = 0; v < names_.size(); v++) {
             std::fprintf(f, "%s{\"id\":%zu,\"name\":\"%s\",\"init\":[", v ? "," : "", v, names_[v].c_str());
@@ -74,7 +79,11 @@ public:
             std::fprintf(f, ",\"line\":%u}", o.line);
         }
         std::fprintf(f, "\n]}\n");
+#ifdef TV_STDERR
+        std::fflush(f);
+#else
         std::fclose(f);
+#endif
     }
     ~Tracer() { dump(); }
 

@@ -64,3 +64,24 @@ export function highlight(line: string): Tok[] {
   }
   return out;
 }
+
+/** Tracks a recursion tree while an engine runs; pass `snapshot()` into frame state. */
+export class CallTracker {
+  nodes: import('./types').CallNode[] = [];
+  active: number | null = null;
+  enter(label: string) {
+    const id = this.nodes.length;
+    this.nodes.push({ id, parent: this.active, label, done: false });
+    this.active = id;
+    return id;
+  }
+  exit() {
+    if (this.active === null) return;
+    const n = this.nodes[this.active];
+    n.done = true;
+    this.active = n.parent;
+  }
+  snapshot() {
+    return { calls: this.nodes, activeCall: this.active };
+  }
+}
