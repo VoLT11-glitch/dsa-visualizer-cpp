@@ -2,6 +2,8 @@
 
 Step through classic algorithms next to their **C++** implementation, see how their cost grows with n, and replay what **your own C++** did to a vector.
 
+**Live:** https://dsa-visualizer-cpp.vercel.app
+
 - **Visualize**: 15 algorithms with the current C++ line highlighted, plus play/pause, step forward/back, scrub and speed controls.
   - Sorting: bubble, insertion, selection, merge, quick (Lomuto), heap
   - Graphs: BFS, DFS, Dijkstra (on an 8-node weighted sample graph)
